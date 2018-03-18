@@ -8,7 +8,7 @@ import (
 )
 
 const Name = "gdrive"
-const Version = "2.1.0"
+const Version = "2.1.0_sync-colab"
 
 const DefaultMaxFiles = 30
 const DefaultMaxChanges = 100
