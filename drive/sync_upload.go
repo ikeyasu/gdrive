@@ -6,6 +6,7 @@ import (
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
 	"io"
+	"mime"
 	"os"
 	"path/filepath"
 	"sort"
@@ -282,6 +283,14 @@ func (self *Drive) createMissingRemoteDir(args createMissingRemoteDirArgs) (*dri
 	return f, nil
 }
 
+func mimeFromFileName(filename string) (string) {
+	ext := filepath.Ext(filename)
+	if ext == ".ipynb" {
+		return "application/vnd.google.colab"
+	}
+	return mime.TypeByExtension(ext)
+}
+
 func (self *Drive) uploadMissingFile(parentId string, lf *LocalFile, args UploadSyncArgs, try int) error {
 	if args.DryRun {
 		return nil
@@ -299,7 +308,13 @@ func (self *Drive) uploadMissingFile(parentId string, lf *LocalFile, args Upload
 	dstFile := &drive.File{
 		Name:          lf.info.Name(),
 		Parents:       []string{parentId},
+		MimeType:      mimeFromFileName(lf.info.Name()),
 		AppProperties: map[string]string{"sync": "true", "syncRootId": args.RootId},
+	}
+
+	// Description for Colaboratory
+	if dstFile.MimeType == "application/vnd.google.colab" {
+		dstFile.Description = "Colaboratory notebook"
 	}
 
 	// Chunk size option
@@ -332,7 +347,7 @@ func (self *Drive) updateChangedFile(cf *changedFile, args UploadSyncArgs, try i
 		return nil
 	}
 
-	srcFile, err := os.Open(cf.local.absPath)
+	srcFile, srcFileInfo, err := openFile(cf.local.absPath)
 	if err != nil {
 		return fmt.Errorf("Failed to open file: %s", err)
 	}
@@ -342,6 +357,14 @@ func (self *Drive) updateChangedFile(cf *changedFile, args UploadSyncArgs, try i
 
 	// Instantiate drive file
 	dstFile := &drive.File{}
+
+	// Update mimetype
+	dstFile.MimeType = mimeFromFileName(srcFileInfo.Name())
+
+	// Description for Colaboratory
+	if dstFile.MimeType == "application/vnd.google.colab" {
+		dstFile.Description = "Colaboratory notebook"
+	}
 
 	// Chunk size option
 	chunkSize := googleapi.ChunkSize(int(args.ChunkSize))
